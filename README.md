@@ -289,13 +289,16 @@ If so, no further changes are required to `operateShutters.conf`. However you wi
 cover:
    - platform: mqtt
      name: '{SHUTTERNAME}'
-     payload_open: 100
-     payload_close: 0
-     command_topic: 'somfy/0x2670xx/level/cmd'
-     position_topic: 'somfy/0x2670xx/level/set_state'
-     set_position_topic: 'somfy/0x2670xx/level/cmd'
-     state_open: 100
-     state_closed: 0
+     state_topic: 'somfy/0x2670xx/state'
+     state_opening: 'opening',
+     state_closing: 'closing',
+     state_stopped: 'stopped',
+     command_topic: 'somfy/0x2670xx/state/cmd",
+     payload_open: 'open',
+     payload_close: 'close',
+     payload_stop: 'stop',
+     position_topic: 'somfy/0x2670xx/position",
+     set_position_topic: 'somfy/0x2670xx/position/set"
 ```
 
 And that's it! 
@@ -313,8 +316,8 @@ mosquitto_sub -h 192.168.x.x -p 1883 -u [username]-P [password] -t '#' -v
 If you want to post a message to the MQTT Broker for your Pi-Somfy to pick up, you can use following to send messages (assuming you set up mosquitto with a username and password):
 
 ```
-mosquitto_pub -h 192.168.x.x -p 1883 -u [username]-P [password] -t 'somfy/0x2670xx/level/cmd' -m '0'
-mosquitto_pub -h 192.168.x.x -p 1883 -u [username]-P [password] -t 'somfy/0x2670xx/level/cmd' -m '100'
+mosquitto_pub -h 192.168.x.x -p 1883 -u [username]-P [password] -t 'somfy/0x2670xx/state/cmd' -m 'close'
+mosquitto_pub -h 192.168.x.x -p 1883 -u [username]-P [password] -t 'somfy/0x2670xx/state/cmd' -m 'open'
 ```
 
 Those 2 command will lower and rise your shutters.
