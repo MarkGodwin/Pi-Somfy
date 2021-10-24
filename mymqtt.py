@@ -27,13 +27,19 @@ except Exception as e1:
 
 class DiscoveryMsg():
     DISCOVERY_MSG = {"name": "",
-                     "command_topic": "somfy/%s/level/cmd",
-                     "position_topic": "somfy/%s/level/set_state",
-                     "set_position_topic": "somfy/%s/level/cmd",
-                     "payload_open": "100",
-                     "payload_close": "0",
-                     "state_open": "100",
-                     "state_closed": "0",
+                     "availability_topic": "somfy/%s/service_status",
+                     "payload_available": "online",
+                     "payload_not_available": "offline",
+                     "state_topic": "somfy/$s/state",
+                     "state_opening": "opening",
+                     "state_closing": "closing",
+                     "state_stopped": "stopped",
+                     "command_topic": "somfy/%s/state/cmd",
+                     "payload_open": "open",
+                     "payload_close": "close",
+                     "payload_stop": "stop",
+                     "position_topic": "somfy/%s/position",
+                     "set_position_topic": "somfy/%s/position/set",
                      "unique_id": "",
                      "device": {"name": "",
                                 "model": "Pi-Somfy controlled shutter",
@@ -42,9 +48,10 @@ class DiscoveryMsg():
                                 }
                      }
 
-    def __init__(self, shutter, shutterId):
+    def __init__(self, shutter, shutterId, clientId):
         self.discovery_msg = deepcopy(DiscoveryMsg.DISCOVERY_MSG)
         self.discovery_msg["name"] = shutter
+        self.discovery_msg["availability_topic"] = DiscoveryMsg.DISCOVERY_MSG["availability_topic"] % clientId
         self.discovery_msg["command_topic"] = DiscoveryMsg.DISCOVERY_MSG["command_topic"] % shutterId
         self.discovery_msg["position_topic"] = DiscoveryMsg.DISCOVERY_MSG["position_topic"] % shutterId
         self.discovery_msg["set_position_topic"] = DiscoveryMsg.DISCOVERY_MSG["set_position_topic"] % shutterId
@@ -82,21 +89,33 @@ class MQTT(threading.Thread, MyLog):
             topic = message.topic
             self.LogInfo("message received from MQTT: "+topic+" = "+msg)
     
-            [prefix, shutterId, property, command] = topic.split("/")
-            if (command == "cmd"):
-                self.LogInfo("sending message: "+str(msg))
-                if msg == "STOP":
-                    self.shutter.stop(shutterId)
-                elif int(msg) == 0:
-                    self.shutter.lower(shutterId)
-                elif int(msg) == 100:
-                    self.shutter.rise(shutterId)
-                elif (int(msg) > 0) and (int(msg) < 100):
-                    currentPosition = self.shutter.getPosition(shutterId)
-                    if int(msg) > currentPosition:
-                        self.shutter.risePartial(shutterId, int(msg))
-                    elif int(msg) < currentPosition:   
-                        self.shutter.lowerPartial(shutterId, int(msg))
+            [prefix, shutterId, prop, command] = topic.split("/")
+            if(prop == "state"):
+                if (command == "cmd"):
+                    self.LogInfo("Shutter command: " + str(msg))
+                    if msg == "stop":
+                        self.shutter.stop(shutterId)
+                    elif msg == "close":
+                        self.shutter.lower(shutterId)
+                    elif msg == "open":
+                        self.shutter.rise(shutterId)
+                    else:
+                        self.LogInfo("Ignoring unknown command:" + str(msg))
+            elif(prop == "position"):
+                if (command == "set"):
+                    self.LogInfo("Position will be set to: " + str(msg))
+                    if int(msg) == 0:
+                        self.shutter.lower(shutterId)
+                    elif int(msg) == 100:
+                        self.shutter.rise(shutterId)
+                    elif (int(msg) > 0) and (int(msg) < 100):
+                        currentPosition = self.shutter.getPosition(shutterId)
+                        if int(msg) > currentPosition:
+                            self.shutter.risePartial(shutterId, int(msg))
+                        elif int(msg) < currentPosition:   
+                            self.shutter.lowerPartial(shutterId, int(msg))
+                        else:
+                            self.LogInfo("Shutter is already at target position")
             else:
                 self.LogError("received unkown message: "+topic+", message: "+msg)
     
@@ -111,7 +130,7 @@ class MQTT(threading.Thread, MyLog):
         
     def sendStartupInfo(self):
         for shutter, shutterId in sorted(self.config.ShuttersByName.items(), key=lambda kv: kv[1]):
-            self.sendMQTT("homeassistant/cover/"+shutterId+"/config", str(DiscoveryMsg(shutter, shutterId)))
+            self.sendMQTT("homeassistant/cover/"+shutterId+"/config", str(DiscoveryMsg(shutter, shutterId, self.config.MQTT_ClientID)))
 
     def on_connect(self, client, userdata, flags, rc):
         if rc==0:
@@ -119,10 +138,13 @@ class MQTT(threading.Thread, MyLog):
             self.connected_flag = True
             for shutter, shutterId in sorted(self.config.ShuttersByName.items(), key=lambda kv: kv[1]):
                 self.LogInfo("Subscribe to shutter: "+shutter)
-                self.t.subscribe("somfy/"+shutterId+"/level/cmd")
+                self.t.subscribe("somfy/"+shutterId+"/position/set")
+                self.t.subscribe("somfy/"+shutterId+"/state/cmd")
             if self.config.EnableDiscovery == True:
                 self.LogInfo("Sending Home Assistant MQTT Discovery messages")
                 self.sendStartupInfo()
+                self.t.publish("somfy/" + self.config.MQTT_ClientID + "/service_status", "online", retain = True)
+
         else:
             print("Bad connection Returned code= ",rc)
             self.connected_flag=False
@@ -137,9 +159,14 @@ class MQTT(threading.Thread, MyLog):
                 self.t.connect(self.config.MQTT_Server,self.config.MQTT_Port)
 
             
-    def set_state(self, shutterId, level):
-        self.LogInfo("Received request to set Shutter "+shutterId+" to "+str(level))
-        self.sendMQTT("somfy/"+shutterId+"/level/set_state", str(level))
+    def set_position(self, shutterId, level):
+        self.LogInfo("Publishing shutter "+shutterId+" position as "+str(level))
+        self.sendMQTT("somfy/"+shutterId+"/position", str(level))
+
+    # valid are opening, closing, stopped. TODO: should pass in an 
+    def set_state(self, shutterId, state):
+        self.LogInfo("Publishing shutter "+shutterId+" status as "+str(state))
+        self.sendMQTT("somfy/"+shutterId+"/state", str(state))
             
     def run(self):
         self.connected_flag = False
@@ -149,10 +176,12 @@ class MQTT(threading.Thread, MyLog):
         self.t = paho.Client(client_id=self.config.MQTT_ClientID)
         if not (self.config.MQTT_Password.strip() == ""):
            self.t.username_pw_set(username=self.config.MQTT_User,password=self.config.MQTT_Password)
+        self.t.will_set("somfy/" + self.config.MQTT_ClientID + "/service_status", "offline", retain = True)
         self.t.on_connect = self.on_connect
         self.t.on_message = self.receiveMessageFromMQTT
         self.t.on_disconnect = self.on_disconnect
-        self.shutter.registerCallBack(self.set_state)
+        self.shutter.registerPositionCallBack(self.set_position)
+        self.shutter.registerStateCallBack(self.set_state)
         
         # Startup the mqtt listener
         error = 0
@@ -168,6 +197,7 @@ class MQTT(threading.Thread, MyLog):
             except Exception as e:
                 error += 1
                 self.LogInfo("Exception in MQTT connect " + str(error) + ": "+ str(e.args))
+
 
         error = 0
         while not self.shutdown_flag.is_set():
