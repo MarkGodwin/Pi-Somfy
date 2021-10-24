@@ -84,6 +84,10 @@ class Shutter(MyLog):
         for function in self.callback:
             function(shutterId, newPosition)
 
+        # Update the position of any shutters grouped with this one
+        for childId in self.config.Shutters[shutterId]['groupedShutterIds']:
+            self.setPosition(childId, newPosition)
+
     def waitAndSetFinalPosition(self, shutterId, timeToWait, newPosition):
         state = self.getShutterState(shutterId)
         oldLastCommandTime = state.lastCommandTime
