@@ -117,8 +117,9 @@ class FlaskAppWrapper(MyLog):
         
     def up(self, params):
         if not self.validatePassword():
-            return {'status': 'ERROR'}
+            return {'status': 'ERROR', 'message': 'Bad password'}
         shutter=params.get('shutter', 0, type=str)
+        shutter = hex(int(shutter, 16))
         self.LogDebug("rise shutter \""+shutter+"\"")
         if (not shutter in self.config.Shutters):
             return {'status': 'ERROR', 'message': 'Shutter does not exist'}
@@ -127,8 +128,9 @@ class FlaskAppWrapper(MyLog):
 
     def down(self, params):
         if not self.validatePassword():
-            return {'status': 'ERROR'}
+            return {'status': 'ERROR', 'message': 'Bad password'}
         shutter=params.get('shutter', 0, type=str)
+        shutter = hex(int(shutter, 16))
         self.LogDebug("lower shutter \""+shutter+"\"")
         if (not shutter in self.config.Shutters):
             return {'status': 'ERROR', 'message': 'Shutter does not exist'}
@@ -137,8 +139,9 @@ class FlaskAppWrapper(MyLog):
 
     def stop(self, params):
         if not self.validatePassword():
-            return {'status': 'ERROR'}
+            return {'status': 'ERROR', 'message': 'Bad password'}
         shutter=params.get('shutter', 0, type=str)
+        shutter = hex(int(shutter, 16))
         self.LogDebug("stop shutter \""+shutter+"\"")
         if (not shutter in self.config.Shutters):
             return {'status': 'ERROR', 'message': 'Shutter does not exist'}
@@ -146,7 +149,10 @@ class FlaskAppWrapper(MyLog):
         return {'status': 'OK'}
 
     def program(self, params):
+        if not self.validatePassword():
+            return {'status': 'ERROR', 'message': 'Bad password'}
         shutter=params.get('shutter', 0, type=str)
+        shutter = hex(int(shutter, 16))
         self.LogDebug("program shutter \""+shutter+"\"")
         if (not shutter in self.config.Shutters):
             return {'status': 'ERROR', 'message': 'Shutter does not exist'}
@@ -154,7 +160,10 @@ class FlaskAppWrapper(MyLog):
         return {'status': 'OK'}
 
     def press(self, params):
+        if not self.validatePassword():
+            return {'status': 'ERROR', 'message': 'Bad password'}
         shutter=params.get('shutter', 0, type=str)
+        shutter = hex(int(shutter, 16))
         buttons = params.get('buttons', 0, type=int)
         longPress = params.get('longPress', 0, type=str) == "true"
         self.LogDebug(("long" if longPress else "short") +" press buttons: \"" +str(buttons)+ "\" shutter \""+shutter+"\"")
@@ -195,18 +204,19 @@ class FlaskAppWrapper(MyLog):
                 for key in self.config.Shutters:
                     if tmp_id == int(key, 16):
                         conflict = True
-            id = "0x%0.2X" % tmp_id
+            id = hex(tmp_id)
             code = 1
             self.LogDebug("got a new shutter id: "+id)
-            self.config.WriteValue(str(id), str(name)+",True,"+str(duration), section="Shutters");
-            self.config.WriteValue(str(id), str(code), section="ShutterRollingCodes");
-            self.config.WriteValue(str(id), str(None), section="ShutterIntermediatePositions");
+            self.config.WriteValue(id, str(name)+",True,"+str(duration), section="Shutters");
+            self.config.WriteValue(id, str(code), section="ShutterRollingCodes");
+            self.config.WriteValue(id, str(None), section="ShutterIntermediatePositions");
             self.config.ShuttersByName[name] = id
             self.config.Shutters[id] = {'name': name, 'code': code, 'duration': duration, 'intermediatePosition': None}
             return {'status': 'OK', 'id': id}
 
     def editShutter(self, params):
         id = params.get('id', 0, type=str)
+        id = hex(int(id, 16))
         if sys.version_info[0] < 3:
             import unicodedata
             name = params.get('name', 0, type=unicode)
@@ -232,11 +242,12 @@ class FlaskAppWrapper(MyLog):
             self.config.ShuttersByName.pop(self.config.Shutters[id]['name'], None)
             self.config.ShuttersByName['name'] = id
             self.config.Shutters[id]['name'] = name
-            self.config.Shutters[id]['duration'] = duration
+            self.config.Shutters[id]['duration'] = int(duration)
             return {'status': 'OK'}
 
     def deleteShutter(self, params):
         id = params.get('id', 0, type=str)
+        id = hex(int(id, 16))
         self.LogDebug("delete shutter: "+id)
         if (not id in self.config.Shutters):
             return {'status': 'ERROR', 'message': 'Shutter does not exist'}

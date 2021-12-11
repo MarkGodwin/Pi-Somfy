@@ -30,7 +30,7 @@ class DiscoveryMsg():
                      "availability_topic": "somfy/%s/service_status",
                      "payload_available": "online",
                      "payload_not_available": "offline",
-                     "state_topic": "somfy/$s/state",
+                     "state_topic": "somfy/%s/state",
                      "state_opening": "opening",
                      "state_closing": "closing",
                      "state_stopped": "stopped",
@@ -53,6 +53,7 @@ class DiscoveryMsg():
         self.discovery_msg["name"] = shutter
         self.discovery_msg["availability_topic"] = DiscoveryMsg.DISCOVERY_MSG["availability_topic"] % clientId
         self.discovery_msg["command_topic"] = DiscoveryMsg.DISCOVERY_MSG["command_topic"] % shutterId
+        self.discovery_msg["state_topic"] = DiscoveryMsg.DISCOVERY_MSG["state_topic"] % shutterId
         self.discovery_msg["position_topic"] = DiscoveryMsg.DISCOVERY_MSG["position_topic"] % shutterId
         self.discovery_msg["set_position_topic"] = DiscoveryMsg.DISCOVERY_MSG["set_position_topic"] % shutterId
         self.discovery_msg["unique_id"] = shutterId

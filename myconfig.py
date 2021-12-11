@@ -119,7 +119,7 @@ class MyConfig (MyLog):
 
     #---------------------MyConfig::setCode---------------------------------
     def setCode(self, shutterId, code):
-        self.WriteValue(shutterId, str(code), section="ShutterRollingCodes");
+        self.WriteValue(hex(int(shutterId,16)), str(code), section="ShutterRollingCodes");
         self.Shutters[shutterId]['code'] = code
         
 
